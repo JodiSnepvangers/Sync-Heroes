@@ -1,0 +1,1634 @@
+settings
+{
+	lobby
+	{
+		Allow Players Who Are In Queue: Yes
+		Max FFA Players: 8
+	}
+
+	modes
+	{
+		Deathmatch
+		{
+			Game Length In Minutes: 15
+			Score To Win: 50
+			Self Initiated Respawn: Off
+
+			disabled maps
+			{
+				Kanezaka
+				Workshop Expanse Night
+				Workshop Green Screen
+				Workshop Island Night
+			}
+		}
+
+		General
+		{
+			Game Mode Start: Immediately
+			Limit Roles: 2 Of Each Role Per Team
+			Respawn As Random Hero: On
+			Spawn Health Packs: Disabled
+		}
+	}
+
+	heroes
+	{
+		General
+		{
+			Ultimate Generation - Passive: 200%
+
+			Brigitte
+			{
+				Healing Dealt: 150%
+				Whip Shot Knockback Scalar: 150%
+			}
+
+			D.Va
+			{
+				Spawn Without Mech: On
+				Ultimate Generation Self-Destruct: 40%
+			}
+
+			Lúcio
+			{
+				Soundwave Cooldown Time: 30%
+			}
+
+			Mercy
+			{
+				Regeneration: Off
+			}
+
+			Moira
+			{
+				Biotic Orb Cooldown Time: 0%
+				Biotic Orb Max Damage Scalar: 10%
+				Healing Dealt: 10%
+				Healing Received: 10%
+				Secondary Fire: Off
+			}
+
+			Reinhardt
+			{
+				Health: 200%
+			}
+
+			Tracer
+			{
+				No Ammunition Requirement: On
+			}
+
+			Widowmaker
+			{
+				Health: 25%
+				Infinite Ultimate Duration: On
+				No Automatic Fire: On
+				Receive Headshots Only: On
+			}
+
+			enabled heroes
+			{
+				D.Va
+			}
+		}
+	}
+}
+
+variables
+{
+	global:
+		0: PhaseCounter
+		1: RoundInProgress
+		2: RoundNumber
+		3: HeroAvailabilty
+		4: HeroChosen
+		5: UpdateFuturePrizeGui
+		6: UpdatePreviousPrizeGui
+		7: FuturePrize
+		8: PreviousPrize
+		9: Winner
+		10: Timer
+		11: FutureGuiID
+		12: PreviousGuiID
+		13: TimerGUI
+		14: Null
+		15: null
+
+	player:
+		0: SelectedHero
+		1: HeroStatic
+		2: UltCharge
+		3: NanoBoost
+		4: ScoreBooster
+		5: MercyPassive
+		6: LifeStealPrecentage
+		7: ArmourPiercingAmount
+		8: ArmourPiercingVars
+		9: EnableCustomizedUltimate
+		10: SombraUltCountdown
+		11: SombraUltGuiContainer
+		12: SombraUltGuiHero
+		13: SombraUltActive
+		14: SombraUltDepressed
+		15: SombraInvisRevealDelay
+		16: JoinGameIcon
+}
+
+rule("InitializationPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 0;
+	}
+
+	actions
+	{
+		Global.null = False;
+		Global.RoundInProgress = False;
+		Global.RoundNumber = 0;
+		disabled Global.HeroAvailabilty = Filtered Array(All Heroes, Current Array Element == Hero(McCree));
+		Global.HeroAvailabilty = Randomized Array(All Heroes);
+		Global.HeroChosen = Null;
+		Global.Winner = Null;
+		Global.UpdateFuturePrizeGui = False;
+		Global.UpdatePreviousPrizeGui = False;
+		Global.FutureGuiID = False;
+		Global.FuturePrize = 0;
+		Global.PreviousPrize = -1;
+		Global.Timer = 200;
+		Wait(0.050, Ignore Condition);
+		Global.PhaseCounter = 1;
+	}
+}
+
+rule("PlayerInitializationPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 1;
+	}
+
+	actions
+	{
+		Global.PhaseCounter = 2;
+		Wait(1.300, Ignore Condition);
+		All Players(All Teams).HeroStatic = False;
+		Set Respawn Max Time(All Players(All Teams), 9999);
+		Enable Death Spectate All Players(All Players(All Teams));
+		Enable Death Spectate Target HUD(All Players(All Teams));
+		All Players(All Teams).ArmourPiercingVars = Empty Array;
+		All Players(All Teams).ArmourPiercingVars[1] = True;
+		All Players(All Teams).EnableCustomizedUltimate = True;
+		All Players(All Teams).SombraInvisRevealDelay = 10;
+		Global.Null = True;
+		Wait(10.250, Ignore Condition);
+		Set Match Time(3599);
+	}
+}
+
+rule("RoundSelectorPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 2;
+	}
+
+	actions
+	{
+		Global.RoundNumber += 1;
+		Global.PhaseCounter = 3;
+		Global.Timer = 200;
+	}
+}
+
+rule("HeroSelectorPhaseDuringGameplay")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 3;
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Skip If(Random Integer(0, 100) <= 25, 1);
+		Skip If(Global.HeroAvailabilty != Empty Array, 1);
+		Global.HeroAvailabilty = Randomized Array(All Heroes);
+		Global.HeroChosen = Random Value In Array(Global.HeroAvailabilty);
+		Modify Global Variable(HeroAvailabilty, Remove From Array By Value, Global.HeroChosen);
+		Filtered Array(All Players(All Teams), Current Array Element.HeroStatic != True).SelectedHero = Global.HeroChosen;
+		All Players(All Teams).HeroStatic = False;
+		Preload Hero(All Players(All Teams), Global.HeroChosen);
+		Wait(0.050, Ignore Condition);
+		Global.PhaseCounter = 4;
+	}
+}
+
+rule("HeroSelectorPhaseBeforeGameplay")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 3;
+		Is Game In Progress == False;
+	}
+
+	actions
+	{
+		Skip If(Global.HeroAvailabilty != Empty Array, 1);
+		Global.HeroAvailabilty = Randomized Array(All Heroes);
+		Global.HeroChosen = Random Value In Array(Global.HeroAvailabilty);
+		Modify Global Variable(HeroAvailabilty, Remove From Array By Value, Global.HeroChosen);
+		Wait(1.400, Ignore Condition);
+		All Players(All Teams).SelectedHero = Global.HeroChosen;
+		Preload Hero(All Players(All Teams), Global.HeroChosen);
+		Global.PhaseCounter = 4;
+	}
+}
+
+rule("SpawningPhase")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 4;
+	}
+
+	actions
+	{
+		Event Player.UltCharge = Ultimate Charge Percent(Event Player);
+		Respawn(All Players(All Teams));
+		Wait(0.150, Ignore Condition);
+		Start Forcing Player To Be Hero(Event Player, Event Player.SelectedHero);
+		Wait(0.050, Ignore Condition);
+		Set Ultimate Charge(Event Player, Event Player.UltCharge);
+		Wait(0.350, Ignore Condition);
+		Heal(Event Player, Null, 10000);
+		Global.PhaseCounter = 4.500;
+	}
+}
+
+rule("GameStartDelayer")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 4.500;
+	}
+
+	actions
+	{
+		Skip If(Is Game In Progress == False, 1);
+		Global.PhaseCounter = 5;
+		Wait(0.100, Ignore Condition);
+		Start Forcing Player To Be Hero(Filtered Array(All Players(All Teams), Hero Of(Current Array Element) != Global.HeroChosen),
+			Global.HeroChosen);
+		Loop If Condition Is True;
+	}
+}
+
+rule("RoundStartPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 5;
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Big Message(All Players(All Teams), Custom String("Round {0}: {1} {2} {1}", Global.RoundNumber, Hero Icon String(
+			Global.HeroChosen), Global.HeroChosen));
+		Global.UpdateFuturePrizeGui = True;
+		Global.UpdatePreviousPrizeGui = True;
+		Clear Status(All Players(All Teams), Rooted);
+		Clear Status(All Players(All Teams), Unkillable);
+		Wait(0.500, Ignore Condition);
+		Global.PhaseCounter = 6;
+		Global.RoundInProgress = True;
+		Allow Button(All Players(All Teams), Button(Primary Fire));
+		Allow Button(All Players(All Teams), Button(Secondary Fire));
+		Allow Button(All Players(All Teams), Button(Ability 1));
+		Allow Button(All Players(All Teams), Button(Ability 2));
+		Allow Button(All Players(All Teams), Button(Ultimate));
+		Allow Button(All Players(All Teams), Button(Jump));
+		Allow Button(All Players(All Teams), Button(Crouch));
+	}
+}
+
+rule("RoundWatcherPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 6;
+		(Number Of Living Players(All Teams) == 1 || Global.Timer == 0) == True;
+	}
+
+	actions
+	{
+		Global.RoundInProgress = False;
+		Big Message(All Players(All Teams), Custom String("Round {0} finished!", Global.RoundNumber));
+		Skip If(Number Of Living Players(All Teams) >= 2, 4);
+		Wait(0.750, Ignore Condition);
+		Skip If(Number Of Living Players(All Teams) == 0, 3);
+		Small Message(All Players(All Teams), Custom String("{0} is the winner!", All Living Players(All Teams)[0]));
+		Global.Winner = 100;
+		Skip(1);
+		Small Message(All Players(All Teams), Custom String("no one won...", All Living Players(All Teams)[0]));
+		Set Status(All Living Players(All Teams), Null, Unkillable, 9999);
+		Wait(2.250, Ignore Condition);
+		Global.PhaseCounter = 7;
+	}
+}
+
+rule("PlayerTeleportPhase")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is On Ground(Event Player) == False;
+		Global.PhaseCounter == 7;
+	}
+
+	actions
+	{
+		Teleport(Event Player, Nearest Walkable Position(Position Of(Event Player)));
+		Wait(0.016, Ignore Condition);
+		Apply Impulse(Event Player, Vector(0, -10, 0), 0, To World, Cancel Contrary Motion);
+		Disallow Button(Event Player, Button(Jump));
+		Disallow Button(Event Player, Button(Ultimate));
+		Disallow Button(Event Player, Button(Ability 1));
+		Disallow Button(Event Player, Button(Ability 2));
+		Disallow Button(Event Player, Button(Primary Fire));
+		Disallow Button(Event Player, Button(Secondary Fire));
+		Disallow Button(Event Player, Button(Crouch));
+		Abort If(Hero Of(Event Player) != Hero(Mercy));
+		Set Status(Event Player, Null, Stunned, 9999);
+	}
+}
+
+rule("PlayerRootingPhase")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 7;
+		Is On Ground(Event Player) == True;
+	}
+
+	actions
+	{
+		Set Status(Event Player, Null, Rooted, 9999);
+		Disallow Button(Event Player, Button(Jump));
+		Disallow Button(Event Player, Button(Ultimate));
+		Disallow Button(Event Player, Button(Ability 1));
+		Disallow Button(Event Player, Button(Ability 2));
+		Disallow Button(Event Player, Button(Primary Fire));
+		Disallow Button(Event Player, Button(Secondary Fire));
+		Disallow Button(Event Player, Button(Crouch));
+	}
+}
+
+rule("LockdownCheckerPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 7;
+		Filtered Array(All Living Players(All Teams), Has Status(Current Array Element, Rooted) == True) == Empty Array;
+		Is On Ground(All Living Players(All Teams)) == True;
+	}
+
+	actions
+	{
+		Wait(0.050, Ignore Condition);
+		Skip If(Number Of Living Players(All Teams) != 1, 2);
+		Global.Winner = All Living Players(All Teams)[0];
+		Skip(3);
+		Skip If(Global.Winner != 100, 1);
+		Small Message(All Players(All Teams), Custom String("Nevermind"));
+		Global.Winner = 0;
+		Global.PhaseCounter = 8;
+	}
+}
+
+rule("PlayerCleanerPhase")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 8;
+	}
+
+	actions
+	{
+		Set Aim Speed(Event Player, 100);
+		Set Damage Dealt(Event Player, 100);
+		Set Damage Received(Event Player, 100);
+		Set Gravity(Event Player, 100);
+		Set Healing Dealt(Event Player, 100);
+		Set Healing Received(Event Player, 100);
+		Set Invisible(Event Player, None);
+		Set Max Health(Event Player, 100);
+		Set Move Speed(Event Player, 100);
+		Set Projectile Gravity(Event Player, 100);
+		Set Projectile Speed(Event Player, 100);
+		Event Player.ScoreBooster = 0;
+		Event Player.LifeStealPrecentage = 0;
+		Event Player.MercyPassive = 0;
+		Event Player.NanoBoost = 1;
+		All Players(All Teams).ArmourPiercingVars = Empty Array;
+		All Players(All Teams).ArmourPiercingVars[1] = True;
+		Destroy HUD Text(Event Player.SombraUltGuiContainer);
+		Event Player.SombraUltCountdown = 0;
+		Event Player.SombraUltDepressed = 0;
+		Event Player.SombraUltActive = 0;
+		Clear Status(Event Player, Stunned);
+		Event Player.SombraUltGuiHero = 0;
+		Event Player.EnableCustomizedUltimate = True;
+		Event Player.SombraInvisRevealDelay = 10;
+		Wait(0.050, Ignore Condition);
+		Global.PhaseCounter = 9;
+		Event Player.SombraUltGuiContainer = 0;
+		Destroy Icon(Event Player.JoinGameIcon);
+	}
+}
+
+rule("PrizeAwardPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 9;
+	}
+
+	actions
+	{
+		Skip If(Global.Winner != 0, 7);
+		Global.PreviousPrize = -1;
+		Global.FuturePrize = -1;
+		Global.UpdateFuturePrizeGui = True;
+		Global.UpdatePreviousPrizeGui = True;
+		Wait(0.050, Ignore Condition);
+		Global.PhaseCounter = 10;
+		Abort;
+		Global.PreviousPrize = Global.FuturePrize;
+		Global.FuturePrize = -1;
+		Global.UpdateFuturePrizeGui = True;
+		Global.UpdatePreviousPrizeGui = True;
+		Global.PhaseCounter = 10;
+		Skip If(Global.PreviousPrize >= 0, 1);
+		Abort;
+		Skip(1 + Global.PreviousPrize * 4);
+		Create HUD Text(All Players(All Teams), Custom String("THIS SHOULD NEVER BE SHOWN!!!"), Null, Null, Top, 0, Color(Red), Color(Red),
+			Color(Red), Visible To and String, Default Visibility);
+		Small Message(All Players(All Teams), Custom String("{0} was given 3+ score!", Global.Winner));
+		Modify Player Score(Global.Winner, 3);
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} got Nano Boost!", Global.Winner));
+		Global.Winner.NanoBoost = 20;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} kept their hero!", Global.Winner));
+		Global.Winner.HeroStatic = True;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} has double health!", Global.Winner));
+		Set Max Health(Global.Winner, 200);
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} gains twice the score!", Global.Winner));
+		Global.Winner.ScoreBooster = 1;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} goes trice as fast!", Global.Winner));
+		Set Move Speed(Global.Winner, 300);
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} recieved their ultimate!", Global.Winner));
+		Set Ultimate Charge(Global.Winner, 100);
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} was given mercy's passive!", Global.Winner));
+		Global.Winner.MercyPassive = 2;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} has Super Projectiles!", Global.Winner));
+		Set Projectile Speed(Global.Winner, 500);
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} got Life Steal!", Global.Winner));
+		Global.Winner.LifeStealPrecentage = 30;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0}'s attacks have armour piercing!", Global.Winner));
+		Global.Winner.ArmourPiercingAmount = 3;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} has a identity crisis!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{0} null!", Global.Winner));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{1}{0} was given Endless ultimates!{1}", Global.Winner, Icon String(
+			Exclamation Mark)));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{1}{0} became a powerful boss!{1}", Global.Winner, Icon String(
+			Exclamation Mark)));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{1}{0} null!{1}", Global.Winner, Icon String(Exclamation Mark)));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{1}{0} null!{1}", Global.Winner, Icon String(Exclamation Mark)));
+		Abort;
+		Abort;
+		Abort;
+		Small Message(All Players(All Teams), Custom String("{1}{0} null!{1}", Global.Winner, Icon String(Exclamation Mark)));
+		Abort;
+		Abort;
+		Abort;
+	}
+}
+
+rule("NewPrizeSelectorPhase")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 10;
+	}
+
+	actions
+	{
+		Wait(0.250, Ignore Condition);
+		Global.PhaseCounter = 2;
+		Skip If(Global.RoundNumber >= 3 && Random Integer(0, 100) <= 70, 2);
+		Global.FuturePrize = 0;
+		Abort;
+		Global.FuturePrize = Random Integer(1, 10);
+		Abort;
+	}
+}
+
+rule("FuturePrizeGui")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.UpdateFuturePrizeGui == True;
+	}
+
+	actions
+	{
+		Global.UpdateFuturePrizeGui = False;
+		Destroy HUD Text(Global.FutureGuiID);
+		Skip If(Global.FuturePrize > -1, 1);
+		Abort;
+		Skip(1 + Global.FuturePrize * 3);
+		Create HUD Text(All Players(All Teams), Custom String("THIS SHOULD NEVER BE SHOWN!!!"), Null, Null, Top, 0, Color(Red), Color(Red),
+			Color(Red), Visible To and String, Default Visibility);
+		Create HUD Text(All Players(All Teams), Custom String("Prize: 3+ Score Bonus"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Nano Boost"), Null, Custom String("Round {0}", Global.RoundNumber),
+			Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Keep Hero"), Null, Custom String("Round {0}", Global.RoundNumber),
+			Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Double Health"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: 2x Score Gain"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Triple Speed"), Null, Custom String("Round {0}", Global.RoundNumber),
+			Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Instant Ultimate"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Mercy Passive"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Super Projectiles"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Life Steal"), Null, Custom String("Round {0}", Global.RoundNumber),
+			Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Armour Piercing"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Identity Crisis"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Purple), Color(Purple), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Endless Ultimates"), Null, Custom String("Round {0}",
+			Global.RoundNumber), Left, 1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: Boss Mode"), Null, Custom String("Round {0}", Global.RoundNumber),
+			Left, 1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Prize: null"), Null, Custom String("Round {0}", Global.RoundNumber), Left,
+			1, Color(Red), Color(Red), Color(White), Visible To and String, Default Visibility);
+		Global.FutureGuiID = Last Text ID;
+		Abort;
+	}
+}
+
+rule("PreviousPrizeGui")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.UpdatePreviousPrizeGui == True;
+	}
+
+	actions
+	{
+		Global.UpdatePreviousPrizeGui = False;
+		Destroy HUD Text(Global.PreviousGuiID);
+		Skip If(Global.PreviousPrize > -1, 1);
+		Abort;
+		Skip(1 + Global.PreviousPrize * 3);
+		Create HUD Text(All Players(All Teams), Custom String("THIS SHOULD NEVER BE SHOWN!!!"), Null, Null, Top, 0, Color(Red), Color(Red),
+			Color(Red), Visible To and String, Default Visibility);
+		Create HUD Text(All Players(All Teams), Custom String("Previous: 3+ Score Bonus"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Nano Boost"), Null, Null, Left, 0, Color(Purple), Color(Purple),
+			Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Keep Hero"), Null, Null, Left, 0, Color(Purple), Color(Purple),
+			Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Double Health"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: 2x Score Gain"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Triple Speed"), Null, Null, Left, 0, Color(Purple), Color(Purple),
+			Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Instant Ultimate"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Mercy Passive"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Super Projectiles"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Life Steal"), Null, Null, Left, 0, Color(Purple), Color(Purple),
+			Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Armour Piercing"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Identity Crisis"), Null, Null, Left, 0, Color(Purple), Color(
+			Purple), Color(Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Purple), Color(Purple), Color(
+			Purple), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Endless Ultimates"), Null, Null, Left, 0, Color(Red), Color(Red),
+			Color(Red), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: Boss Mode"), Null, Null, Left, 0, Color(Red), Color(Red), Color(
+			Red), Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Red), Color(Red), Color(Red),
+			Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Red), Color(Red), Color(Red),
+			Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Red), Color(Red), Color(Red),
+			Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Red), Color(Red), Color(Red),
+			Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Red), Color(Red), Color(Red),
+			Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+		Create HUD Text(All Players(All Teams), Custom String("Previous: null"), Null, Null, Left, 0, Color(Red), Color(Red), Color(Red),
+			Visible To and String, Default Visibility);
+		Global.PreviousGuiID = Last Text ID;
+		Abort;
+	}
+}
+
+rule("NanoBoostInitialize")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.NanoBoost > 1;
+		disabled Global.RoundInProgress == True;
+	}
+
+	actions
+	{
+		Create Effect(All Players(All Teams), Good Aura, Color(Blue), Position Of(Event Player), 3, Visible To Position and Radius);
+		Create Effect(All Players(All Teams), Good Aura, Color(Aqua), Position Of(Event Player), 3, Visible To Position and Radius);
+		Create Effect(All Players(All Teams), Good Aura, Color(Sky Blue), Position Of(Event Player), 3, Visible To Position and Radius);
+		Set Damage Dealt(Event Player, 150);
+		Set Damage Received(Event Player, 50);
+	}
+}
+
+rule("NanoBoostTimer")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.NanoBoost > 1;
+		disabled Global.RoundInProgress == True;
+	}
+
+	actions
+	{
+		Wait(1, Abort When False);
+		Event Player.NanoBoost -= 1;
+		Loop If Condition Is True;
+	}
+}
+
+rule("NanoBoostReset")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.NanoBoost == 1;
+		disabled Global.RoundInProgress == True;
+	}
+
+	actions
+	{
+		Destroy All Effects;
+		Set Damage Dealt(Event Player, 100);
+		Set Damage Received(Event Player, 100);
+		Event Player.NanoBoost = 0;
+		Abort If(Global.RoundInProgress == False);
+		Play Effect(All Players(All Teams), Ring Explosion, Color(Blue), Position Of(Event Player) + Vector(0, 0.200, 0), 12);
+		disabled Wait(0.050, Ignore Condition);
+		Play Effect(All Players(All Teams), Ring Explosion, Color(Aqua), Position Of(Event Player) + Vector(0, 0.200, 0), 10);
+		disabled Wait(0.050, Ignore Condition);
+		Play Effect(All Players(All Teams), Ring Explosion, Color(Sky Blue), Position Of(Event Player) + Vector(0, 0.200, 0), 8);
+	}
+}
+
+rule("ScoreBooster")
+{
+	event
+	{
+		Player Dealt Final Blow;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.ScoreBooster != 0;
+	}
+
+	actions
+	{
+		Modify Player Score(Event Player, Event Player.ScoreBooster);
+	}
+}
+
+rule("DEBUGForceCharacter")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Hero Of(Event Player) != Event Player.SelectedHero;
+		Global.PhaseCounter == 5;
+		Is Dummy Bot(Event Player) == False;
+		Event Player.HeroStatic != True;
+	}
+
+	actions
+	{
+		Wait(0.250, Ignore Condition);
+		Abort If Condition Is False;
+		Start Forcing Player To Be Hero(Event Player, Event Player.SelectedHero);
+		Create HUD Text(All Players(All Teams), Custom String("error: player hero was incorrect"), Null, Null, Left, 0, Color(Red), Color(
+			Red), Color(Red), Visible To and String, Default Visibility);
+		Global.Z = Last Text ID;
+		Wait(5.250, Ignore Condition);
+		Destroy HUD Text(Global.Z);
+	}
+}
+
+rule("MercyPassive")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.MercyPassive != 0;
+		Global.RoundInProgress == True;
+		Is Dummy Bot(Event Player) == False;
+	}
+
+	actions
+	{
+		Wait(0.250, Abort When False);
+		Skip If(Event Player.MercyPassive >= 2 || Health(Event Player) == Max Health(Event Player), 2);
+		Play Effect(All Players(All Teams), Good Explosion, Color(Yellow), Event Player, 0.500);
+		Heal(Event Player, Event Player, Random Integer(2, 8));
+		Loop If Condition Is True;
+	}
+}
+
+rule("MercyShock")
+{
+	event
+	{
+		Player Took Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.MercyPassive != 0;
+		Global.RoundInProgress == True;
+		Is Dummy Bot(Event Player) == False;
+	}
+
+	actions
+	{
+		Event Player.MercyPassive = 2;
+		Wait(3, Restart When True);
+		Abort If(Event Player.MercyPassive == 0);
+		Event Player.MercyPassive = 1;
+	}
+}
+
+rule("LifeStealPassive")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.LifeStealPrecentage > 0;
+		Is Dummy Bot(Event Player) == False;
+	}
+
+	actions
+	{
+		Heal(Event Player, Event Player, Event Damage / 100 * Event Player.LifeStealPrecentage);
+		Play Effect(All Players(All Teams), Bad Pickup Effect, Color(Red), Event Player, 1);
+	}
+}
+
+rule("ArmourPiercing")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.ArmourPiercingAmount >= 0;
+		Event Player.ArmourPiercingVars[1] != False;
+		disabled Is Dummy Bot(Event Player) == False;
+	}
+
+	actions
+	{
+		Event Player.ArmourPiercingVars[1] = False;
+		Event Player.ArmourPiercingVars[0] = Max Health(Victim) / 100 * Event Player.ArmourPiercingAmount;
+		Event Player.ArmourPiercingVars[0] = Event Player.ArmourPiercingVars[0] * Min(1, Event Damage / 50);
+		Damage(Victim, Event Player, Event Player.ArmourPiercingVars[0]);
+		Wait(0.016, Ignore Condition);
+		Event Player.ArmourPiercingVars[1] = True;
+	}
+}
+
+rule("TimerRed")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.Timer <= 30;
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Destroy HUD Text(Global.TimerGUI);
+		Create HUD Text(All Players(All Teams), Custom String("Time: {0}", Global.Timer), Null, Null, Right, 0, Color(Red), Color(Red),
+			Color(Red), Visible To and String, Default Visibility);
+		Global.TimerGUI = Last Text ID;
+	}
+}
+
+rule("TimerWhite")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.Timer > 30;
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Destroy HUD Text(Global.TimerGUI);
+		Create HUD Text(All Players(All Teams), Custom String("Time: {0}", Global.Timer), Null, Null, Right, 0, Color(White), Color(White),
+			Color(White), Visible To and String, Default Visibility);
+		Global.TimerGUI = Last Text ID;
+	}
+}
+
+rule("TimerTick")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.Timer > 0;
+		Global.RoundInProgress == True;
+	}
+
+	actions
+	{
+		Skip If(Global.Timer <= 30, 1);
+		Skip If(Number Of Living Players(All Teams) == 2, 1);
+		Wait(0.600, Abort When False);
+		Wait(0.400, Abort When False);
+		Global.Timer -= 1;
+		Loop If Condition Is True;
+	}
+}
+
+rule("MercyFlyEndlessly")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		Mercy;
+	}
+
+	conditions
+	{
+		Global.RoundInProgress == True;
+		Is Game In Progress == True;
+		Is Using Ultimate(Event Player) == False;
+		disabled Event Player.EnableCustomizedUltimate == True;
+		Is Alive(Event Player) == True;
+	}
+
+	actions
+	{
+		Event Player.UltCharge = Ultimate Charge Percent(Event Player);
+		Wait(0.016, Ignore Condition);
+		Set Ultimate Charge(Event Player, 100);
+		Wait(0.016, Ignore Condition);
+		Press Button(Event Player, Button(Ultimate));
+		Wait(0.032, Ignore Condition);
+		Set Ultimate Charge(Event Player, Event Player.UltCharge);
+		Wait(0.250, Ignore Condition);
+		Loop If Condition Is True;
+	}
+}
+
+rule("SombraUltimateDisabler")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Event Player.EnableCustomizedUltimate == True;
+		Global.RoundInProgress == True;
+	}
+
+	actions
+	{
+		Wait(0.016, Ignore Condition);
+		Disallow Button(Event Player, Button(Ultimate));
+	}
+}
+
+rule("SombraUltimateReplacer")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Is Button Held(Event Player, Button(Ultimate)) == True;
+		Ultimate Charge Percent(Event Player) == 100;
+		Event Player.EnableCustomizedUltimate == True;
+		Event Player.SombraUltCountdown == 0;
+	}
+
+	actions
+	{
+		Abort If(Is Alive(Event Player) == False);
+		Skip If(Event Player.SombraUltCountdown != 0, 6);
+		Set Ultimate Charge(Event Player, 0);
+		Create HUD Text(Event Player, Custom String("Press Ultimate to select: {0}", Hero Icon String(Event Player.SombraUltGuiHero)),
+			Null, Null, Top, 0, Color(Purple), Color(Purple), Color(Purple), Visible To and String, Default Visibility);
+		Event Player.SombraUltDepressed = False;
+		Event Player.SombraUltGuiContainer = Last Text ID;
+		Event Player.SombraUltCountdown = 50;
+		Wait(0.250, Ignore Condition);
+		Skip If(Is Button Held(Event Player, Button(Ultimate)) == True, 1);
+		Event Player.SombraUltDepressed = True;
+		Event Player.SombraUltGuiHero = Random Value In Array(Randomized Array(Remove From Array(Remove From Array(All Heroes,
+			Event Player.SombraUltGuiHero), Hero(Sombra))));
+		Wait(Event Player.SombraUltCountdown / 70, Ignore Condition);
+		Abort If(Event Player.SombraUltCountdown == 0);
+		Abort If(Hero Of(Event Player) != Hero(Sombra));
+		Abort If(Is Alive(Event Player) == False);
+		Event Player.SombraUltCountdown -= 1;
+		Loop If(Event Player.SombraUltCountdown >= 4);
+		Press Button(Event Player, Button(Ultimate));
+		Destroy HUD Text(Event Player.SombraUltGuiContainer);
+	}
+}
+
+rule("SombraUltimateConfirm")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Event Player.SombraUltCountdown >= 2;
+		Is Button Held(Event Player, Button(Ultimate)) == True;
+		Event Player.EnableCustomizedUltimate == True;
+		Event Player.SombraUltDepressed == True;
+	}
+
+	actions
+	{
+		Abort If(Is Alive(Event Player) == False);
+		Abort If(Event Player.SombraUltGuiHero == 0);
+		Event Player.SombraUltCountdown = 0;
+		Big Message(Event Player, Custom String("Selected {0}", Event Player.SombraUltGuiHero));
+		Play Effect(All Players(All Teams), Good Pickup Effect, Color(Purple), Position Of(Event Player), 3);
+		Set Max Health(Event Player, 30);
+		Set Status(Event Player, Null, Unkillable, 9999);
+		Preload Hero(Event Player, Hero(Sombra));
+		Event Player.SombraUltActive = True;
+		Destroy HUD Text(Event Player.SombraUltGuiContainer);
+		Event Player.SombraUltCountdown = 0;
+		Event Player.SombraUltDepressed = 0;
+		Start Forcing Player To Be Hero(Event Player, Event Player.SombraUltGuiHero);
+	}
+}
+
+rule("SombraUltimateDeadChecker")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Event Player.SombraUltActive == True;
+		Health(Event Player) <= 2;
+		Global.RoundInProgress == True;
+		Is Alive(Event Player) == True;
+	}
+
+	actions
+	{
+		Wait(0.050, Ignore Condition);
+		Abort If Condition Is False;
+		Event Player.SombraInvisRevealDelay = 10;
+		Set Max Health(Event Player, 100);
+		Start Forcing Player To Be Hero(Event Player, Hero(Sombra));
+		Wait(1, Ignore Condition);
+		Allow Button(Event Player, Button(Ultimate));
+		Wait(0.016, Ignore Condition);
+		Set Ultimate Charge(Event Player, 100);
+		Press Button(Event Player, Button(Ultimate));
+		Wait(0.016, Ignore Condition);
+		Disallow Button(Event Player, Button(Ultimate));
+		Clear Status(Event Player, Unkillable);
+	}
+}
+
+rule("SombraUltimateAbort")
+{
+	event
+	{
+		Player Died;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		(Event Player.SombraUltActive == True || Event Player.SombraUltCountdown != 0) == True;
+	}
+
+	actions
+	{
+		Destroy HUD Text(Event Player.SombraUltGuiContainer);
+		Event Player.SombraUltCountdown = 0;
+		Event Player.SombraUltDepressed = 0;
+		Event Player.SombraUltActive = 0;
+		Event Player.SombraUltGuiHero = 0;
+	}
+}
+
+rule("SombraRevealInvis")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+		Hero Of(Event Player) == Hero(Sombra);
+		Is Using Ability 1(Event Player) == True;
+	}
+
+	actions
+	{
+		Wait(Random Real(2.600, 2.900), Ignore Condition);
+		Abort If Condition Is False;
+		Skip If(Event Player.SombraInvisRevealDelay == 0, 1);
+		Event Player.SombraInvisRevealDelay -= 1;
+		Loop If(Event Player.SombraInvisRevealDelay != 0);
+		Skip(1 + Random Integer(0, 4) * 2);
+		Abort;
+		Communicate(Event Player, Voice Line Up);
+		Skip(1);
+		Communicate(Event Player, Voice Line Left);
+		Skip(1);
+		Communicate(Event Player, Voice Line Right);
+		Skip(1);
+		Communicate(Event Player, Voice Line Down);
+		Skip(1);
+		Communicate(Event Player, Hello);
+		Skip(1);
+		Loop If Condition Is True;
+		Loop If Condition Is True;
+	}
+}
+
+rule("SombraDamageReset")
+{
+	event
+	{
+		Player Took Damage;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Event Player.SombraInvisRevealDelay = 10;
+	}
+}
+
+rule("SombraDamageReset")
+{
+	event
+	{
+		Player Dealt Damage;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Is Game In Progress == True;
+	}
+
+	actions
+	{
+		Event Player.SombraInvisRevealDelay = 10;
+	}
+}
+
+rule("SombraAbilityDelayAddition")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		Sombra;
+	}
+
+	conditions
+	{
+		Is Using Ability 1(Event Player) == True;
+	}
+
+	actions
+	{
+		Abort If(Event Player.SombraInvisRevealDelay >= 10);
+		Event Player.SombraInvisRevealDelay = Min(Event Player.SombraInvisRevealDelay + 3, 10);
+	}
+}
+
+disabled rule("debug")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Button Held(Event Player, Button(Interact)) == True;
+	}
+
+	actions
+	{
+		Create Dummy Bot(Hero(McCree), All Teams, -1, Position Of(Event Player), Facing Direction Of(Event Player));
+	}
+}
+
+rule("PlayerJoinEvent")
+{
+	event
+	{
+		Player Joined Match;
+		All;
+		All;
+	}
+
+	actions
+	{
+		Wait(2, Ignore Condition);
+		Event Player.HeroStatic = False;
+		Set Respawn Max Time(Event Player, 9999);
+		Enable Death Spectate All Players(Event Player);
+		Enable Death Spectate Target HUD(Event Player);
+		Event Player.ArmourPiercingVars = Empty Array;
+		Event Player.ArmourPiercingVars[1] = True;
+		Event Player.EnableCustomizedUltimate = True;
+		Event Player.SombraInvisRevealDelay = 10;
+		Abort If(Global.RoundInProgress == False);
+		disabled Create Icon(All Players(All Teams), Position Of(Event Player), Skull, Visible To and Position, Color(Red), True);
+		disabled Event Player.JoinGameIcon = Last Created Entity;
+		Kill(Event Player, Null);
+		Wait(0.250, Ignore Condition);
+		Set Player Score(Event Player, 0);
+	}
+}
+
+rule("HostDebug")
+{
+	event
+	{
+		Ongoing - Each Player;
+		All;
+		All;
+	}
+
+	conditions
+	{
+		Is Button Held(Event Player, Button(Interact)) == True;
+		Event Player == Host Player;
+		Is Button Held(Event Player, Button(Crouch)) == True;
+	}
+
+	actions
+	{
+		Global.PhaseCounter = 8;
+	}
+}
+
+rule("LockdownCheckerPhaseEmptyPlayers")
+{
+	event
+	{
+		Ongoing - Global;
+	}
+
+	conditions
+	{
+		Global.PhaseCounter == 7;
+		All Living Players(All Teams) == Empty Array;
+	}
+
+	actions
+	{
+		Wait(0.050, Ignore Condition);
+		Global.PhaseCounter = 8;
+	}
+}
